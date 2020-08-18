@@ -42,15 +42,11 @@ namespace Willmav5000.iHacktivate
             actServer.Prefixes.Add("http://localhost:4228/");
             actServer.Start();
 
-            while(true)
+            while (true)
             {
                 HttpListenerContext context = actServer.GetContext();
                 HttpListenerResponse response = context.Response;
                 HttpListenerRequest request = context.Request;
-
-                string page = Directory.GetCurrentDirectory() + context.Request.Url.LocalPath;
-
-                string msg = "Nothing Here.";
 
                 string data = GetRequestPostData(request);
                 Dictionary<string, string> activationData = GetActivationData(data);
@@ -62,21 +58,32 @@ namespace Willmav5000.iHacktivate
                 string ats = SignData(at);
                 at = System.Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(at));
 
-                msg = ActivationData(fpkd, atc, dc, ats, at);
-                System.IO.File.WriteAllText(@"Data\\"+ activationData["serialNumber"] + "\\activation_record.plist", msg);
+                string msg = ActivationData(fpkd, atc, dc, ats, at);
+
+                string subDir = "Data\\" + activationData["serialNumber"]; // your code goes here
+                bool exists = Directory.Exists(subDir);
+
+                if (!exists)
+                    Directory.CreateDirectory(subDir);
+
+                File.WriteAllText(@"Data\\" + activationData["serialNumber"] + "\\activation_record.plist", msg);
 
                 byte[] buffer = Encoding.UTF8.GetBytes(msg);
 
                 response.ContentLength64 = buffer.Length;
                 response.Headers.Add("Content-type", "application/xml");
                 response.Headers.Add("Server", "iHacktivate\r\n\r\n");
-                Stream st = response.OutputStream;  
+                Stream st = response.OutputStream;
                 st.Write(buffer, 0, buffer.Length);
 
-                context.Response.Close(); 
-            }
+                context.Response.Close();
 
-            actServer.Stop();
+                if (!String.IsNullOrEmpty(msg))
+                {
+                    actServer.Stop();
+                    break;
+                }
+            }
         }
 
         public static string GetRequestPostData(HttpListenerRequest request)
@@ -148,7 +155,7 @@ namespace Willmav5000.iHacktivate
                     {
                         switch (nodes.Item(i).InnerText)
                         {
-                            case "ActivationRandomness": 
+                            case "ActivationRandomness":
                                 activationData.Add("activationRandomness", nodes.Item(i + 1).InnerText);
                                 break;
                             case "ActivationState":
@@ -219,7 +226,8 @@ namespace Willmav5000.iHacktivate
             return atc;
         }
 
-        private string AccountToken(Dictionary<string, string> activationData) {
+        private string AccountToken(Dictionary<string, string> activationData)
+        {
             string at = "{" +
                         (activationData.ContainsKey("internationalMobileEquipmentIdentity") ? "\"InternationalMobileEquipmentIdentity\" = \"" + activationData["internationalMobileEquipmentIdentity"] + "\";" : "") +
                         (activationData.ContainsKey("mobileEquipmentIdentifier") ? "\"MobileEquipmentIdentifier\" = \"" + activationData["mobileEquipmentIdentifier"] + "\";" : "") +
@@ -229,10 +237,10 @@ namespace Willmav5000.iHacktivate
                         "\"UniqueDeviceID\" = \"" + activationData["uniqueDeviceID"] + "\";" +
                         "\"ActivationRandomness\" = \"" + activationData["activationRandomness"] + "\";" +
                         "\"ActivityURL\" = \"https://albert.apple.com/deviceservices/activity\";" +
-                        "\"IntegratedCircuitCardIdentity\" = \"" + activationData["integratedCircuitCardIdentity"] + "\";" +
+                        "\"IntegratedCircuitCardIdentity\" = \"" + (activationData.ContainsKey("integratedCircuitCardIdentity") ? activationData["integratedCircuitCardIdentity"] : "") + "\";" +
                         (activationData["deviceClass"] == "iPhone" ? "\"CertificateURL\" = \"https://albert.apple.com/deviceservices/certifyMe\";" : "") +
                         (activationData["deviceClass"] == "iPhone" ? "\"PhoneNumberNotificationURL\" = \"https://albert.apple.com/deviceservices/phoneHome\";" : "") +
-                        (activationData.ContainsKey("wildcardTicket") ? "\"WildcardTicket\" = \"" + activationData["wildcardTicket"] + "\";" : "\"WildcardTicket\" = \"\";") +
+                        "\"WildcardTicket\" = \"" + (activationData.ContainsKey("wildcardTicket") ? activationData["wildcardTicket"] : "") + "\";" +
                         "}";
             return at;
         }
