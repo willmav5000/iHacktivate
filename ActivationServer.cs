@@ -49,6 +49,20 @@ namespace Willmav5000.iHacktivate
                 HttpListenerRequest request = context.Request;
 
                 string data = GetRequestPostData(request);
+
+                if (string.IsNullOrEmpty(data))
+                {
+                    byte[] noBuff = Encoding.UTF8.GetBytes("<h1>Nothing to see here!</h1>");
+
+                    response.ContentLength64 = noBuff.Length;
+                    response.Headers.Add("Content-type", "text/html; charset=UTF-8");
+                    response.Headers.Add("Server", "iHacktivate\r\n\r\n");
+                    Stream ns = response.OutputStream;
+                    ns.Write(noBuff, 0, noBuff.Length);
+                    context.Response.Close();
+                    continue;
+                }
+                    
                 Dictionary<string, string> activationData = GetActivationData(data);
 
                 string fpkd = FairPlayKeyData("");
@@ -56,17 +70,17 @@ namespace Willmav5000.iHacktivate
                 string dc = DeviceCertificate();
                 string at = AccountToken(activationData);
                 string ats = SignData(at);
-                at = System.Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(at));
+                at = Convert.ToBase64String(Encoding.UTF8.GetBytes(at));
 
                 string msg = ActivationData(fpkd, atc, dc, ats, at);
 
-                string subDir = "Data\\" + activationData["serialNumber"]; // your code goes here
+                string subDir = @"Data//" + activationData["serialNumber"] + "//";
                 bool exists = Directory.Exists(subDir);
 
                 if (!exists)
                     Directory.CreateDirectory(subDir);
 
-                File.WriteAllText(@"Data\\" + activationData["serialNumber"] + "\\activation_record.plist", msg);
+                File.WriteAllText(subDir + "activation_record.plist", msg);
 
                 byte[] buffer = Encoding.UTF8.GetBytes(msg);
 
@@ -78,7 +92,7 @@ namespace Willmav5000.iHacktivate
 
                 context.Response.Close();
 
-                if (!String.IsNullOrEmpty(msg))
+                if (!string.IsNullOrEmpty(msg))
                 {
                     actServer.Stop();
                     break;
@@ -92,9 +106,9 @@ namespace Willmav5000.iHacktivate
             {
                 return null;
             }
-            using (System.IO.Stream body = request.InputStream)
+            using (Stream body = request.InputStream)
             {
-                using (System.IO.StreamReader reader = new System.IO.StreamReader(body, request.ContentEncoding))
+                using (StreamReader reader = new StreamReader(body, request.ContentEncoding))
                 {
                     var contentTypeRegex = new Regex("^multipart\\/form-data;\\s*boundary=(.*)$", RegexOptions.IgnoreCase);
                     var boundaryRegex = new Regex("boundary=(.*)$", RegexOptions.IgnoreCase);
@@ -102,7 +116,7 @@ namespace Willmav5000.iHacktivate
 
                     if (contentTypeRegex.IsMatch(request.ContentType))
                     {
-                        var boundary = contentTypeRegex.Match(request.ContentType).Groups[1].Value;
+                        var boundary = boundaryRegex.Match(request.ContentType).Groups[1].Value;
 
                         bodyStream = bodyStream.Replace("Content-Disposition: form-data; name=\"activation-info\"", "");
                         bodyStream = bodyStream.Replace(boundary, "");
@@ -122,7 +136,7 @@ namespace Willmav5000.iHacktivate
             }
         }
 
-        private Dictionary<string, string> GetActivationData(String data)
+        private Dictionary<string, string> GetActivationData(string data)
         {
             Dictionary<string, string> activationData = new Dictionary<string, string>();
             string xmlData = "";
@@ -134,10 +148,10 @@ namespace Willmav5000.iHacktivate
                 foreach (XmlNode xmlNode in xmlDoc.DocumentElement.ChildNodes[1])
                 {
                     xmlData = xmlNode.InnerText;
-                    xmlData = System.Text.Encoding.Default.GetString(System.Convert.FromBase64String(xmlData));
+                    xmlData = Encoding.Default.GetString(Convert.FromBase64String(xmlData));
                 }
             }
-            catch (System.IO.FileNotFoundException)
+            catch (FileNotFoundException)
             {
                 Debug.WriteLine("Wrong!");
             }
@@ -165,7 +179,7 @@ namespace Willmav5000.iHacktivate
                                 activationData.Add("basebandSerialNumber", nodes.Item(i + 1).InnerText);
                                 break;
                             case "DeviceCertRequest":
-                                activationData.Add("deviceCertRequest", System.Text.Encoding.Default.GetString(System.Convert.FromBase64String(nodes.Item(i + 1).InnerText)));
+                                activationData.Add("deviceCertRequest", Encoding.Default.GetString(Convert.FromBase64String(nodes.Item(i + 1).InnerText)));
                                 break;
                             case "DeviceClass":
                                 activationData.Add("deviceClass", nodes.Item(i + 1).InnerText);
@@ -205,7 +219,7 @@ namespace Willmav5000.iHacktivate
                 }
             }
 
-            catch (System.IO.FileNotFoundException)
+            catch (FileNotFoundException)
             {
                 Debug.WriteLine("Wrong!");
             }
@@ -213,7 +227,7 @@ namespace Willmav5000.iHacktivate
             return activationData;
         }
 
-        private string FairPlayKeyData(String device)
+        private string FairPlayKeyData(string device)
         {
             string fpkd = "LS0tLS1CRUdJTiBDT05UQUlORVItLS0tLQpBQUVBQVNyTkhHMW5jc1N5NU5HVGpNcUpYZndTcnRSeklqZklQa1E4NnY4TldJTTZ3L1J6L1RhblFEKzNtOERwCnFkNmhVZy9BUHVOK2orYmJybGlDSEt5SWtMYTZKL0ZtNFVaYlZZZjhVQ2dGWFltMDJEZ1JqQ1FGUHBoUjJ6eVMKd2V4a0dKaVFNNE1pQUdPY2ZvZjBETG5ldXpUODlqRnM3eExUWjEzbXRFT2txd3BVMU81elp0UGtYK2VSUUJjdgp0RjgrYXNDZGQrVDlYQ29OSXhadGE4NnlVeFRLSWdGMk5nL3R4VnNyUkcwV29MdmcxL2d4amlhaElMODBFTjJwCjRJUnlvTUJjV3AyK00rd2FiY3dVZWNEVmVyK1dNSURIeDlkRGdGaWxLQm5Vd1RJVUZoaktwSGQwTHRXRHpzVWUKM1FyKzVvRnkwN21jM1FUc1BFdkx1dzhBbThWMHNCSTVUVXVxaTEycllmQVJmVk9vZ1l4M2FNN0lsMEphZzV2WAo5dWJEUDRrVEVYc1QrQXNjU1UwOHpRVVFDeXpyMUlGZFBJOTBqbFkvMVB0ekJLZHpaL1JZMUtSY2NLQ1VJZW8zCmNsdnRxUVNKWnNhelJmRmg1cmdkNnQ4NWZXeTIzMXZ5bGsyWVlmYjdIeTVhdzBBSzk3OHFKQWg0WDAyZUsyWG8KeXAreVZlVlE2akhGdnZ6am9oUWtMaGQrT2QzZlQ4TVZlNFJiakdTSC9GejZTWTNVSHJ3RTJWcmRGVms3QTJ5awpBdHhhU1dFNHBFQWVlQWRoVEVaTWdaM3ZLRFJDVTBOay85OFlXSThZMlJwVDd2QXRubVZXVC92TU1ZVDdFekxFCnVzNHJiMWczNGdSQnZ1dXR0K3R2ZlZZakcxRHc5WXNwWW9BY1BhZ2Zucmt4V0h2eTAvT1ZaNjdtbkE0UG9hWmgKeEFjQzF0M3BmdElMazFmM3ZTSUZTTHNqSGlYTGd6aTRXL09VNUNsaWJ4amd6Zkt6QWdwNEtZZkRzSHRydHMvagpVOU5zWmhpaFNCSFJPS3RJSVZKZWRJdnBwdW1SSmMrTUFlK09iajNWMFJjUXAyVXQzM2JwNnhBMlZ2VUhEWm9TClM4cUhvZTZmUW85MW1YVEYwSk1NUUZVWlBOYnJLOGlFblNwaDhta3dYVWtzTXJxSHEvSnBpL2RmbmE2WTBXL1oKR1lLelR3WmNJSUpNNWxJRDY5UnZCUURTRmhqVVBPTHJkYUNxdmdhUEVYSEZHakg1MWJ0ZWFCbC9YSGRId1gwYwp0K3NPUmdiT3hrRSs1WFYybjE2aWt1TkpMK0xLMUNDUGgrYVpUUmFmNzFQSWwrVXpaNzgvdUF3UUFTR1gzT25pCnUrU045bnNpNGhLUDMrT3BwcVJWM1NtekxEalhqV0czb3dlNXJNSXgzM3ZJQmhzNDYvdHE2a05WSlNHWWFNUTQKTEllS1lLS2dJbThqRldkVFM1WFRQdFYwZjl4R0V6aDNPT05XRjQ1eS93L1d2V0VwaGJJWCtra1QrT0Z5bDFRdgpYbnZuYjkrT2FTUTJSa3VGTGdjczl1MHBENXdxSnZDVHFia0hOeXJHTGdNSXlBcWszeWsxOHgxcGVYbHE3bjY2CkdubkNPRUJUbE5WNlZCMnlvRzBOQWJXMUFiZzhnYUw4TXVhV1NHeU05b3cvVW9KSkoyRTFIR0ptNGF5UEc4aUYKZ1NxZndQLy9KY09SVks2WEgwNFlnaTJ3SzAvQjR3emdtVDM0RHh5bFpwYlBoLzY2R3BxOFVOWVBJWk5RUWVrWgpXUWlOZXhFMytjSXUwblVjU2xBU2hTdmx6bXJ3enRUZndaL1lHUEZkbkhhaG5yUjRkNEI2Mlg0bWR0Tm1lQWg4ClF4Uk5sdVNqN2p4UzZoMWpBelVnRTlFUXFaTGJ3NHpLMWRGaVhqaml5MEJLV29jTVNxRHBaa2R5ZForUE1zakgKSE92SEZnOS9ZMXVSOFVqMjdmNmlWZUZlcC9OU0N5M1FRZVFRbkdxMWovdTJhVHVuCi0tLS0tRU5EIENPTlRBSU5FUi0tLS0tCg==";
             return fpkd;
@@ -251,7 +265,7 @@ namespace Willmav5000.iHacktivate
             return dc;
         }
 
-        private string ActivationData(String fpkd, String atc, String dc, String ats, String at)
+        private string ActivationData(string fpkd, string atc, string dc, string ats, string at)
         {
             string ad =
                 "<plist version=\"1.0\">\n" +
@@ -289,41 +303,25 @@ namespace Willmav5000.iHacktivate
             return ad;
         }
 
-        public static string SignData(String message)
+        public static string SignData(string message)
         {
-            X509Certificate2 certs = new X509Certificate2(@"Data\\certs.pfx");
+            X509Certificate2 certs = new X509Certificate2(@"Data//certs.pfx");
+            RSA rsaPriv = (RSA)certs.PrivateKey;
 
-            RSA rsa = (RSA)certs.PrivateKey;
-            (certs.PrivateKey as RSACng).Key.SetProperty(
-                new CngProperty(
-                    "Export Policy",
-                    BitConverter.GetBytes((int)CngExportPolicies.AllowPlaintextExport),
-                    CngPropertyOptions.Persist));
-
-            RSAParameters rsaParam = rsa.ExportParameters(true);
-
+            var encoder = new UTF8Encoding();
             byte[] signedBytes;
-            using (var rsaCSP = new RSACryptoServiceProvider())
+            byte[] originalData = encoder.GetBytes(message);
+
+            try
             {
-                var encoder = new UTF8Encoding();
-                byte[] originalData = encoder.GetBytes(message);
-
-                try
-                {
-                    rsaCSP.ImportParameters(rsaParam);
-
-                    signedBytes = rsaCSP.SignData(originalData, CryptoConfig.MapNameToOID("SHA1"));
-                }
-                catch (CryptographicException e)
-                {
-                    Debug.WriteLine(e.Message);
-                    return null;
-                }
-                finally
-                {
-                    rsaCSP.PersistKeyInCsp = false;
-                }
+                signedBytes = rsaPriv.SignData(originalData, HashAlgorithmName.SHA1, RSASignaturePadding.Pkcs1);
             }
+            catch (CryptographicException e)
+            {
+                Debug.WriteLine(e.Message);
+                return null;
+            }
+
             return Convert.ToBase64String(signedBytes);
         }
     }
